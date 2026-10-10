@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drone-landing-zones"
+version = "0.1.0"
+description = "Where can a drone land? Semantic segmentation of nadir drone photos (YOLO26-sem) and a landing-site rule in metres: clear ground, a buffer around people, the nearest safe spot."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Kacper Pawlowski" }]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "opencv-python-headless>=4.9",
+    "pillow>=10",
+    "pyyaml>=6",
+    "torch>=2.3",
+]
+
+[project.optional-dependencies]
+train = ["ultralytics>=8.4", "onnx>=1.16", "onnxslim>=0.1", "onnxruntime>=1.18"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+landing-prepare = "landing.data:main"
+landing-train = "landing.train:main"
+landing-eval = "landing.evaluate:main"
+landing-predict = "landing.predict:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "NPY"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

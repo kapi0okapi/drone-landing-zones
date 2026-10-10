@@ -1,0 +1,51 @@
+# Slurm cluster settings and job definitions, rendered by slurm/generate.py.
+# Put your account in slurm/cluster.local.toml (not committed):  [cluster]  account = "..."
+# Downloads (dataset, model weights) run on a login node: scripts/download_data.sh, scripts/download_models.sh.
+# Find your Slurm account with:  sacctmgr show assoc format=Account%20,User,QOS | grep $USER
+
+[cluster]
+account = "CHANGE_ME"   # overridden by slurm/cluster.local.toml
+python_module = "Python/3.11.3-GCCcore-12.3.0"   # module spider Python
+venv = "/cluster/work/$USER/venvs/drone-landing-zones"
+workdir = "/cluster/work/$USER/drone-landing-zones"   # $DATA = workdir/data, $RUNS = workdir/runs
+mail_user = ""
+
+[cluster.env]
+YOLO_OFFLINE = "1"      # weights are pre-fetched by scripts/download_models.sh
+
+[defaults]
+partition = "GPUQ"
+time = "0-04:00:00"
+cpus = 8
+mem = "32G"
+gpus = 1
+constraint = "gpu32g|gpu40g|gpu80g"   # V100 32 GB, A100, H100 (setup_cluster.sh installs PyTorch for CUDA 12.6)
+
+[jobs.prepare]
+description = "Semantic Drone Dataset -> 1536 x 1024 images, class-id masks and data.yaml (CPU)"
+partition = "CPUQ"
+gpus = 0
+constraint = ""
+cpus = 2
+mem = "16G"
+time = "0-01:00:00"
+command = "python -m landing.data --raw $DATA/SemanticDroneDatasetPublic/semantics --out $DATA/landing"
+
+[jobs.train]
+description = "YOLO26-sem on the Semantic Drone Dataset, from Cityscapes weights (array: n for onboard, s)"
+time = "0-08:00:00"
+checkpoint_signal = true
+command = "python -m landing.train --data $DATA/landing/data.yaml --epochs 150 --imgsz 1536 --batch 8 $ARRAY_ARGS"
+array = ["--model yolo26n-sem.pt --name sdd_yolo26n", "--model yolo26s-sem.pt --name sdd_yolo26s"]
+
+[jobs.evaluate]
+description = "Test images: IoU per class and the landing decision of three policies against the labels (array)"
+time = "0-01:00:00"
+command = "python -m landing.evaluate --data $DATA/landing/data.yaml $ARRAY_ARGS"
+# val picks the planning margin, test reports it
+array = [
+    "--model $RUNS/sdd_yolo26n/weights/best.pt --split val",
+    "--model $RUNS/sdd_yolo26s/weights/best.pt --split val",
+    "--model $RUNS/sdd_yolo26n/weights/best.pt --split test",
+    "--model $RUNS/sdd_yolo26s/weights/best.pt --split test",
+]
